@@ -1,0 +1,12 @@
+bcrypt==3.2.0
+cffi==1.15.0
+coloredlogs==15.0.1
+cryptography==35.0.0
+humanfriendly==10.0
+numpy==1.21.4
+opencv-python==4.5.3.56
+paramiko==2.8.0
+pycparser==2.21
+PyNaCl==1.4.0
+pyserial==3.5
+six==1.16.0
