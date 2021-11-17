@@ -17,6 +17,7 @@ import subprocess
 
 import argparse
 import serial
+import traceback
 
 # Set up logging
 logger = logging.getLogger('boiler-monitor')
@@ -144,7 +145,8 @@ def run_servo(port: str, min_value: bytes, max_value: bytes):
     ser = None
     try:
         ser = serial.Serial(port, 9600)
-    except:
+    except Exception as e:
+        logging.error(traceback.format_exc())
         logger.error("Unable to open serial port" + port)
     if ser:
         logger.info("Allowing serial port to settle")
@@ -386,34 +388,40 @@ def main():
 
     while True:
 
-        logger.debug("Boiler status: " + str(boiler_ok))
-        red_present = check_for_red(cap)
-        logger.debug("Red present: " + str(red_present))
+        try:
+            logger.debug("Boiler status: " + str(boiler_ok))
+            red_present = check_for_red(cap)
+            logger.debug("Red present: " + str(red_present))
 
-        # If we see something red, fail the boiler
-        if red_present:
-            handle_red_seen(prod)
-        else:
-            # If not, check if we reach our grace period of no red seen
-            check_red_timeout(prod)
+            # If we see something red, fail the boiler
+            if red_present:
+                handle_red_seen(prod)
+            else:
+                # If not, check if we reach our grace period of no red seen
+                check_red_timeout(prod)
 
-        # If the boiler is currently failed, check if we should try to restart it
-        if not boiler_ok:
-            if datetime.datetime.now() > boiler_next_recover_time:
-                logger.info("Trying to recover boiler by pressing button")
-                run_servo(args.serial_port, min_value, max_value)
-                # If this does not work, try again later
-                boiler_next_recover_time = boiler_next_recover_time + boiler_recover_delay
-                logger.info("If boiler does not recover: Will try to recover boiler at " +
-                            str(boiler_next_recover_time))
+            # If the boiler is currently failed, check if we should try to restart it
+            if not boiler_ok:
+                if datetime.datetime.now() > boiler_next_recover_time:
+                    logger.info("Trying to recover boiler by pressing button")
+                    run_servo(args.serial_port, min_value, max_value)
+                    # If this does not work, try again later
+                    boiler_next_recover_time = boiler_next_recover_time + boiler_recover_delay
+                    logger.info("If boiler does not recover: Will try to recover boiler at " +
+                                str(boiler_next_recover_time))
 
-        logger.debug("Checking for input, that can stop the program")
-        k = cv2.waitKey(5) & 0xFF
-        if k == 27:
-            break
+            logger.debug("Checking for input, that can stop the program")
+            k = cv2.waitKey(5) & 0xFF
+            if k == 27:
+                break
 
-        # sleep a bit to avoid flooding stuff
-        time.sleep(0.1)
+            # sleep a bit to avoid flooding stuff
+            time.sleep(0.250)
+        except Exception as e:
+            logging.error(traceback.format_exc())
+            logging.error("Sleeping 10 seconds, to normalize system")
+            time.sleep(10)
+            logging.info("Restarting monitoring")
 
     # Destroys all of the HighGUI windows.
     cv2.destroyAllWindows()
