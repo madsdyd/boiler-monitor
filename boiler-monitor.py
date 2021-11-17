@@ -416,7 +416,7 @@ def main():
                 break
 
             # sleep a bit to avoid flooding stuff
-            time.sleep(0.250)
+            time.sleep(0.100)
         except Exception as e:
             logging.error(traceback.format_exc())
             logging.error("Sleeping 10 seconds, to normalize system")
