@@ -138,9 +138,10 @@ notification_mail_address = ''
 
 # serial
 # This blocks, which sucks.
-def run_servo(port: str, min_value: bytes, max_value: bytes):
+def run_servo(port: str, min_value: bytes, max_value: bytes) -> bool:
     """This runs the servo, which trigger the button on the boiler.
-    If unable to open the serial port, an error is logged, then the process continues."""
+    If unable to open the serial port, an error is logged, then the process continues.
+    :return True if run to completion, False otherwise"""
     logger.debug("Running servo")
     ser = None
     try:
@@ -148,6 +149,7 @@ def run_servo(port: str, min_value: bytes, max_value: bytes):
     except Exception as e:
         logging.error(traceback.format_exc())
         logger.error("Unable to open serial port" + port)
+        return False
     if ser:
         logger.info("Allowing serial port to settle")
         time.sleep(1)
@@ -163,8 +165,10 @@ def run_servo(port: str, min_value: bytes, max_value: bytes):
         logger.info("Closing serial port")
         ser.close()
         logger.info("Serial control for button sent")
+        return True
     else:
         logger.warning("Unable to open serial port" + port)
+        return False
 
 
 def run_ssh_cmd(cmd: str) -> bool:
@@ -231,6 +235,18 @@ def boiler_failed(prod):
     """Call this to send a notification, whenever the boiler fails.
     :param prod: Set to True if in production mode. If not set to true, won't actually send a notification."""
     boiler_notification_send(prod, "FAIL")
+
+
+def boiler_button_pressed(prod):
+    """Call this to send a notification, whenever the reset button on the boiler is pressed.
+    :param prod: Set to True if in production mode. If not set to true, won't actually send a notification."""
+    boiler_notification_send(prod, "BUTTON_PRESS")
+
+
+def boiler_button_pressed_failed(prod):
+    """Call this to send a notification, whenever the reset button on the boiler failed to be pressed
+    :param prod: Set to True if in production mode. If not set to true, won't actually send a notification."""
+    boiler_notification_send(prod, "BUTTON_PRESS_FAILED_ERROR")
 
 
 # Call this, if boiler recovered
@@ -404,7 +420,10 @@ def main():
             if not boiler_ok:
                 if datetime.datetime.now() > boiler_next_recover_time:
                     logger.info("Trying to recover boiler by pressing button")
-                    run_servo(args.serial_port, min_value, max_value)
+                    if run_servo(args.serial_port, min_value, max_value):
+                        boiler_button_pressed(prod)
+                    else:
+                        boiler_button_pressed_failed(prod)
                     # If this does not work, try again later
                     boiler_next_recover_time = boiler_next_recover_time + boiler_recover_delay
                     logger.info("If boiler does not recover: Will try to recover boiler at " +
@@ -416,7 +435,7 @@ def main():
                 break
 
             # sleep a bit to avoid flooding stuff
-            time.sleep(0.100)
+            time.sleep(0.095)
         except Exception as e:
             logging.error(traceback.format_exc())
             logging.error("Sleeping 10 seconds, to normalize system")
